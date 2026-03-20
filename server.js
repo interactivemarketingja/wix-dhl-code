@@ -8,11 +8,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Health check route to confirm the server is working
+app.get("/", (req, res) => {
+  res.send("DHL API Backend is running!");
+});
+
+// Rate fetching route (no Jamaica shipping allowed)
 app.post("/rates", async (req, res) => {
   try {
     const { origin, destination, weight } = req.body;
 
-    // Block shipments to Jamaica
+    // Block shipments to Jamaica (JM)
     if (destination.countryCode.toUpperCase() === "JM") {
       return res.status(400).json({ error: "Shipping to Jamaica is not allowed" });
     }
@@ -41,4 +47,5 @@ app.post("/rates", async (req, res) => {
   }
 });
 
+// Start server
 app.listen(process.env.PORT || 3000, () => console.log("Server running"));
