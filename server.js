@@ -70,7 +70,7 @@ app.post("/rates", async (req, res) => {
     };
 
     // Call DHL API safely
-    const response = await fetch("https://api-mydhl.dhl.com/mydhlapi/rates", {
+    const response = await fetch("https://wix-dhl-code.onrender.com/rates", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
