@@ -19,51 +19,57 @@ app.post("/rates", async (req, res) => {
   try {
     const { origin, destination, weight } = req.body;
 
+    // Validate required fields
+    if (!origin || !destination || !weight) {
+      return res.status(400).json({ error: "origin, destination, and weight are required" });
+    }
+
+    if (weight <= 0) {
+      return res.status(400).json({ error: "weight must be a positive number" });
+    }
+
     // Block shipping to Jamaica
     if (destination.countryCode.toUpperCase() === "JM") {
       return res.status(400).json({ error: "Shipping to Jamaica is not allowed" });
     }
 
-    // Validate weight
-    if (!weight || weight <= 0) {
-      return res.status(400).json({ error: "Weight must be a positive number" });
-    }
+    // Provide safe defaults for postalCode and cityName
+    const shipperPostal = origin.postalCode || "10001";
+    const shipperCity = origin.cityName || "New York";
+    const receiverPostal = destination.postalCode || "M5V";
+    const receiverCity = destination.cityName || "Toronto";
 
-    // Full DHL payload
+    // Build DHL payload
     const dhlPayload = {
       plannedShippingDateAndTime: new Date().toISOString(),
       unitOfMeasurement: "metric",
       customerDetails: {
         shipperDetails: {
-          postalCode: origin.postalCode || "10001",
-          cityName: origin.cityName || "New York",
+          postalCode: shipperPostal,
+          cityName: shipperCity,
           countryCode: origin.countryCode
         },
         receiverDetails: {
-          postalCode: destination.postalCode || "M5V",
-          cityName: destination.cityName || "Toronto",
+          postalCode: receiverPostal,
+          cityName: receiverCity,
           countryCode: destination.countryCode
         }
       },
       packages: [
         {
           weight,
-          dimensions: {
-            length: 10,
-            width: 10,
-            height: 10
-          }
+          dimensions: { length: 10, width: 10, height: 10 }
         }
       ],
       accounts: [
         {
           typeCode: "shipper",
-          number: process.env.DHL_ACCOUNT_NUMBER || "" // optional
+          number: process.env.DHL_ACCOUNT_NUMBER || ""
         }
       ]
     };
 
-    // Call DHL API
+    // Call DHL API safely
     const response = await fetch("https://api-mydhl.dhl.com/mydhlapi/rates", {
       method: "POST",
       headers: {
@@ -73,19 +79,26 @@ app.post("/rates", async (req, res) => {
       body: JSON.stringify(dhlPayload)
     });
 
-    const data = await response.json();
+    let data;
+    try {
+      data = await response.json();
+    } catch (jsonErr) {
+      console.error("Error parsing DHL response:", jsonErr);
+      return res.status(500).json({ error: "Failed to parse DHL response" });
+    }
+
     console.log("DHL RESPONSE:", JSON.stringify(data, null, 2));
 
     if (!data.products || data.products.length === 0) {
       return res.status(400).json({ error: "No DHL rates available for this destination." });
     }
 
-    // Return products to frontend
+    // Return DHL products
     res.json(data);
 
   } catch (err) {
     console.error("Backend error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Internal server error", details: err.message });
   }
 });
 
